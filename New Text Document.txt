@@ -1,0 +1,60 @@
+% Define the path to the dataset
+datasetPath = 'path of dataset';
+
+% Load the dataset with resizing
+imageData = imageDatastore(fullfile(datasetPath, {'benign', 'malignant'}), ...
+    'IncludeSubfolders', true, ...
+    'LabelSource', 'foldernames', ...
+    'ReadFcn', @(filename) imresize(imread(filename), [224 224]));
+
+% Split the data into training and validation sets
+[trainData, valData] = splitEachLabel(imageData, 0.8, 'randomized');
+
+% Define the CNN architecture
+layers = [
+    imageInputLayer([224 224 3])
+    convolution2dLayer(3, 8, 'Padding', 'same')
+    batchNormalizationLayer
+    reluLayer
+    maxPooling2dLayer(2, 'Stride', 2)
+
+    convolution2dLayer(3, 16, 'Padding', 'same')
+    batchNormalizationLayer
+    reluLayer
+    maxPooling2dLayer(2, 'Stride', 2)
+
+    fullyConnectedLayer(2) % Two classes: benign and malignant
+    softmaxLayer
+    classificationLayer];
+
+% Set training options
+options = trainingOptions('adam', ...
+    'MaxEpochs', 10, ...
+    'Shuffle', 'every-epoch', ...
+    'ValidationData', valData, ...
+    'Verbose', false, ...
+    'Plots', 'training-progress');
+
+% Train the network
+net = trainNetwork(trainData, layers, options);
+
+% Classify validation images
+YPred = classify(net, valData);
+YValidation = valData.Labels;
+
+% Calculate accuracy
+accuracy = sum(YPred == YValidation) / numel(YValidation);
+disp("Validation Accuracy: " + string(accuracy));
+
+% Load a new image
+[file, path] = uigetfile({'*.jpg;*.png;*.jpeg', 'Image Files'}, 'Select an Image');
+if isequal(file,0)
+    disp('No file selected');
+else
+    newImage = imread(fullfile(path, file));
+    newImage = imresize(newImage, [224 224]); % Resize to match input size
+
+    % Classify the image
+    label = classify(net, newImage); % Use the trained network
+    disp("Predicted Label: " + string(label));
+end
